@@ -5,6 +5,7 @@ import logging
 import base64
 import json
 import os
+from typing import List
 
 import six
 from six.moves import urllib
@@ -41,19 +42,17 @@ class ClientError(ConsulException):
     pass
 
 
-#
-# Convenience to define checks
-
 class Check(object):
     """
-    There are three different kinds of checks: script, http and ttl
+    有三种不同的检查:script、http和ttl
     """
 
     @classmethod
     def script(klass, args, interval):
         """
-        Run the script *args* every *interval* (e.g. "10s") to peform health
-        check
+        运行脚本
+        args  脚本参数
+        interval 间隔时间
         """
         if isinstance(args, six.string_types) \
                 or isinstance(args, six.binary_type):
@@ -63,14 +62,14 @@ class Check(object):
         return {'args': args, 'interval': interval}
 
     @classmethod
-    def http(klass, url, interval, timeout=None, deregister=None, header=None):
+    def http(klass, url: str, interval: int, timeout: int = None, deregister=None, header: dict = None):
         """
-        Peform a HTTP GET against *url* every *interval* (e.g. "10s") to peform
-        health check with an optional *timeout* and optional *deregister* after
-        which a failing service will be automatically deregistered. Optional
-        parameter *header* specifies headers sent in HTTP request. *header*
-        paramater is in form of map of lists of strings,
-        e.g. {"x-foo": ["bar", "baz"]}.
+        每隔一个时间间隔对url执行一个HTTP GET执行健康检查
+        :param url: 健康检查的URL地址
+        :param interval: 间隔时间
+        :param timeout: 健康检查的超时时间
+        :param deregister: 在此之后失败的服务将自动注销。
+        :param header: 表示HTTP请求中发送的头信息。header参数以字符串列表映射的形式存在，例如 {"x-foo": ["bar"， "baz"]}。
         """
         ret = {'http': url, 'interval': interval}
         if timeout:
@@ -82,12 +81,14 @@ class Check(object):
         return ret
 
     @classmethod
-    def tcp(klass, host, port, interval, timeout=None, deregister=None):
+    def tcp(klass, host: str, port: int, interval: str, timeout: int = None, deregister=None):
         """
-        Attempt to establish a tcp connection to the specified *host* and
-        *port* at a specified *interval* with optional *timeout* and optional
-        *deregister* after which a failing service will be automatically
-        deregistered.
+        执行TCP连接的请求
+        :param host 主机地址
+        :param port: 端口号
+        :param interval: 间隔时间，比如“10s”
+        :param timeout: 超时时间
+        :param deregister: 自动注销服务
         """
         ret = {
             'tcp': '{host:s}:{port:d}'.format(host=host, port=port),
@@ -102,18 +103,15 @@ class Check(object):
     @classmethod
     def ttl(klass, ttl):
         """
-        Set check to be marked as critical after *ttl* (e.g. "10s") unless the
-        check is periodically marked as passing.
+        执行ttl类型的健康检查
         """
         return {'ttl': ttl}
 
     @classmethod
     def docker(klass, container_id, shell, script, interval, deregister=None):
         """
-        Invoke *script* packaged within a running docker container with
-        *container_id* at a specified *interval* on the configured
-        *shell* using the Docker Exec API.  Optional *register* after which a
-        failing service will be automatically deregistered.
+        执行docker类型的健康检查
+        :param container_id 容器ID
         """
         ret = {
             'docker_container_id': container_id,
@@ -162,6 +160,7 @@ class Check(object):
         return ret
 
 
+# 响应对象
 Response = collections.namedtuple('Response', ['code', 'headers', 'body'])
 
 
@@ -224,7 +223,10 @@ class CB(object):
         def cb(response):
             CB._status(response, allow_404=allow_404)
             if response.code == 404:
-                return response.headers['X-Consul-Index'], None
+                if index:
+                    return response.headers['X-Consul-Index'], None
+            else:
+                return -1, None
 
             data = json.loads(response.body)
 
@@ -328,7 +330,7 @@ class Consul(object):
         self.event = Consul.Event(self)
         self.kv: Consul.KV = Consul.KV(self)  # KV键值对对象
         self.txn = Consul.Txn(self)
-        self.agent = Consul.Agent(self)
+        self.agent: Consul.Agent = Consul.Agent(self)  # consul代理类
         self.catalog = Consul.Catalog(self)
         self.health = Consul.Health(self)
         self.session = Consul.Session(self)
@@ -616,58 +618,45 @@ class Consul(object):
 
     class Agent(object):
         """
-        The Agent endpoints are used to interact with a local Consul agent.
-        Usually, services and checks are registered with an agent, which then
-        takes on the burden of registering with the Catalog and performing
-        anti-entropy to recover from outages.
+        代理端点用于与本地Consul代理进行交互。 通常，服务和检查是向代理注册的，然后代理负责向Catalog注册并执行反熵以从中断中恢复。
         """
 
         def __init__(self, agent):
-            self.agent = agent
-            self.service = Consul.Agent.Service(agent)
-            self.check = Consul.Agent.Check(agent)
+            self.agent = agent  # 代理对象，也就是consul连接对象
+            self.service: Consul.Agent.Service = Consul.Agent.Service(agent)  # 服务对象
+            self.check: Consul.Agent.Check = Consul.Agent.Check(agent)  # 健康检查对象
 
         def self(self):
             """
-            Returns configuration of the local agent and member information.
+            返回本地代理和成员信息的配置。
             """
             return self.agent.http.get(CB.json(), '/v1/agent/self')
 
         def services(self):
             """
-            Returns all the services that are registered with the local agent.
-            These services were either provided through configuration files, or
-            added dynamically using the HTTP API. It is important to note that
-            the services known by the agent may be different than those
-            reported by the Catalog. This is usually due to changes being made
-            while there is no leader elected. The agent performs active
-            anti-entropy, so in most situations everything will be in sync
-            within a few seconds.
+            返回注册到本地代理的所有服务。
+            这些服务要么通过配置文件提供，要么使用HTTP API动态添加。
+            一定要注意，代理知道的服务可能与Catalog报告的服务不同。
+            这通常是由于在没有选出领导人的情况下发生了变化。
+            该代理执行主动反熵，所以在大多数情况下，一切将在几秒钟内同步。
             """
             return self.agent.http.get(CB.json(), '/v1/agent/services')
 
         def checks(self):
             """
-            Returns all the checks that are registered with the local agent.
-            These checks were either provided through configuration files, or
-            added dynamically using the HTTP API. Similar to services,
-            the checks known by the agent may be different than those
-            reported by the Catalog. This is usually due to changes being made
-            while there is no leader elected. The agent performs active
-            anti-entropy, so in most situations everything will be in sync
-            within a few seconds.
+            返回注册到本地代理的所有检查。
+            这些检查要么通过配置文件提供，要么使用HTTP API动态添加。
+            与服务类似，代理知道的检查可能与Catalog报告的检查不同。
+            这通常是由于在没有选出领导人的情况下发生了变化。
+            该代理执行主动反熵，所以在大多数情况下，一切将在几秒钟内同步。
             """
             return self.agent.http.get(CB.json(), '/v1/agent/checks')
 
         def members(self, wan=False):
             """
-            Returns all the members that this agent currently sees. This may
-            vary by agent, use the nodes api of Catalog to retrieve a cluster
-            wide consistent view of members.
-
-            For agents running in server mode, setting *wan* to *True* returns
-            the list of WAN members instead of the LAN members which is
-            default.
+            返回此代理当前看到的所有成员。
+            这可能因代理而异，使用Catalog的节点api检索成员的集群范围一致视图。
+            对于在服务器模式下运行的代理，将*wan*设置为*True*将返回wan成员列表，而不是默认的LAN成员列表。
             """
             params = []
             if wan:
@@ -677,18 +666,11 @@ class Consul(object):
 
         def maintenance(self, enable, reason=None):
             """
-            The node maintenance endpoint can place the agent into
-            "maintenance mode".
-
-            *enable* is either 'true' or 'false'. 'true' enables maintenance
-            mode, 'false' disables maintenance mode.
-
-            *reason* is an optional string. This is simply to aid human
-            operators.
+            节点维护端点可以将代理置于“维护模式”。
+            *enable* 为true或false。'true'启用维护模式，'false'禁用维护模式。
+            *reason* 是一个可选字符串。这只是为了帮助人类操作者。
             """
-
             params = []
-
             params.append(('enable', enable))
             if reason:
                 params.append(('reason', reason))
@@ -698,53 +680,44 @@ class Consul(object):
 
         def join(self, address, wan=False):
             """
-            This endpoint instructs the agent to attempt to connect to a
-            given address.
-
-            *address* is the ip to connect to.
-
-            *wan* is either 'true' or 'false'. For agents running in server
-            mode, 'true' causes the agent to attempt to join using the WAN
-            pool. Default is 'false'.
+            这个端点指示代理尝试连接到给定的地址。
+            *address*是要连接的IP地址。
+            *address*是要连接的IP地址。 *wan*是“真”或“假”。 对于在服务器模式下运行的代理，'true'将导致代理尝试使用WAN池加入。 默认设置是“假”。
             """
-
             params = []
-
             if wan:
                 params.append(('wan', 1))
-
             return self.agent.http.get(
                 CB.bool(), '/v1/agent/join/%s' % address, params=params)
 
         def force_leave(self, node):
             """
-            This endpoint instructs the agent to force a node into the left
-            state. If a node fails unexpectedly, then it will be in a failed
-            state. Once in the failed state, Consul will attempt to reconnect,
-            and the services and checks belonging to that node will not be
-            cleaned up. Forcing a node into the left state allows its old
-            entries to be removed.
+            这个端点指示代理强制一个节点进入左状态。
+            如果一个节点意外失败，那么它将处于失败状态。
+            一旦处于失败状态，Consul将尝试重新连接，属于该节点的服务和检查将不会被清除。强制一个节点进入左状态允许它的旧条目被删除。
 
-            *node* is the node to change state for.
+            *node*是要改变状态的节点。
             """
-
             return self.agent.http.get(
                 CB.bool(), '/v1/agent/force-leave/%s' % node)
 
         class Service(object):
+            """
+            服务对象
+            """
+
             def __init__(self, agent):
                 self.agent = agent
 
             def register(
                     self,
-                    name,
-                    service_id=None,
-                    address=None,
-                    port=None,
-                    tags=None,
-                    check=None,
+                    name: str,
+                    service_id: str = None,
+                    address: str = None,
+                    port: str = None,
+                    tags: List[str] = None,
+                    check: dict = None,
                     token=None,
-                    # *deprecated* use check parameter
                     script=None,
                     interval=None,
                     ttl=None,
@@ -752,37 +725,13 @@ class Consul(object):
                     timeout=None,
                     enable_tag_override=False):
                 """
-                Add a new service to the local agent. There is more
-                documentation on services
-                `here <http://www.consul.io/docs/agent/services.html>`_.
-
-                *name* is the name of the service.
-
-                If the optional *service_id* is not provided it is set to
-                *name*. You cannot have duplicate *service_id* entries per
-                agent, so it may be necessary to provide one.
-
-                *address* will default to the address of the agent if not
-                provided.
-
-                An optional health *check* can be created for this service is
-                one of `Check.script`_, `Check.http`_, `Check.tcp`_,
-                `Check.ttl`_ or `Check.docker`_.
-
-                *token* is an optional `ACL token`_ to apply to this request.
-                Note this call will return successful even if the token doesn't
-                have permissions to register this service.
-
-                *script*, *interval*, *ttl*, *http*, and *timeout* arguments
-                are deprecated. use *check* instead.
-
-                *enable_tag_override* is an optional bool that enable you
-                to modify a service tags from servers(consul agent role server)
-                Default is set to False.
-                This option is only for >=v0.6.0 version on both agent and
-                servers.
-                for more information
-                https://www.consul.io/docs/agent/services.html
+                注册服务
+                :param name: 服务名称
+                :param service_id: 服务ID
+                :param address: 服务host地址
+                :param port: 端口号
+                :param tags: 标签列表
+                :param check: 健康检查对象
                 """
 
                 payload = {}
