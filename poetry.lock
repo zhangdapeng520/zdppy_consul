@@ -1,0 +1,30 @@
+[[package]]
+name = "zdppy-log"
+version = "0.1.9"
+description = "Python中用于记录日志的工具库，简单而优美，灵活而强大"
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+
+[[package]]
+name = "zdppy-requests"
+version = "0.1.1"
+description = ""
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+
+[package.dependencies]
+zdppy-log = ">=0.1.7,<0.2.0"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.10"
+content-hash = "8a86ccb5dff0a780301e24968f45ea52ec46dce9fb76ad8842223543cb091c14"
+
+[metadata.files]
+zdppy-log = [
+    {file = "zdppy_log-0.1.9-py3-none-any.whl", hash = "sha256:75a0278d9e81246c6e8c73d0f5832a4237e6a7c94bbb72fd683676b7475d25af"},
+    {file = "zdppy_log-0.1.9.tar.gz", hash = "sha256:030b15e3fa2a4a19d7af6f22d834fdda9c55cb90cc98a292f18e0564a22a0167"},
+]
+zdppy-requests = []
