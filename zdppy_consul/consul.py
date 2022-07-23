@@ -25,6 +25,7 @@ class Consul:
 
     def register_http_server(self,
                              server_name: str,
+                             server_id: str,
                              headers: Dict,
                              tags: List[str],
                              server_host: str,
@@ -33,6 +34,7 @@ class Consul:
         """
         注册HTTP服务
         :param server_name: 服务名称
+        :param server_id: 服务唯一标识
         :param headers: 请求头
         :param tags: 服务标签
         :param server_host: 服务主机地址
@@ -57,12 +59,56 @@ class Consul:
         # 发送注册请求
         rsp = zdppy_requests.put(target_url, headers=headers, json={
             "Name": server_name,
-            "ID": "user-web-01",
+            "ID": server_id,
             "Tags": tags,
             "Address": server_host,
             "Port": server_port,
             "Check": {
                 "HTTP": health_check_path,
+                "Timeout": "5s",
+                "Interval": "5s",
+                "DeregisterCriticalServiceAfter": "15s"
+            }
+        })
+
+        # 返回注册结果
+        return rsp is not None and rsp.status_code == 200
+
+    def register_grpc_server(self,
+                             server_name: str,
+                             server_id: str,
+                             headers: Dict,
+                             tags: List[str],
+                             server_host: str,
+                             server_port: int) -> bool:
+        """
+        注册GRPC服务
+        :param server_name: 服务名称
+        :param server_id: 服务唯一标识
+        :param headers: 请求头
+        :param tags: 服务标签
+        :param server_host: 服务主机地址
+        :param server_port: 服务端口号
+        """
+        # 目标地址
+        target_url = f"http://{self.host}:{self.port}/v1/agent/service/register"
+
+        # 请求头
+        if not headers:
+            headers = {
+                "ContentType": "application/json"
+            }
+
+        # 发送注册请求
+        rsp = zdppy_requests.put(target_url, headers=headers, json={
+            "Name": server_name,
+            "ID": server_id,
+            "Tags": tags,
+            "Address": server_host,
+            "Port": server_port,
+            "Check": {
+                "GRPC": f"{server_host}:{server_port}",
+                "GRPCUseTLS": False,
                 "Timeout": "5s",
                 "Interval": "5s",
                 "DeregisterCriticalServiceAfter": "15s"

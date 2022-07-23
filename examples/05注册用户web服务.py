@@ -6,6 +6,7 @@ c = Consul("127.0.0.1", 8500)
 # 注册HTTP服务
 c.register_http_server(
     server_name="user-web",
+    server_id="user-web-01",
     headers={
         "contentType": "application/json"
     },
