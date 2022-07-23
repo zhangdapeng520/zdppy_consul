@@ -1,11 +1,13 @@
-from zdppy_consul import consul
+import zdppy_requests
 
+headers = {
+    "contentType": "application/json"
+}
 
-def unregister(server_name, ip, port):
-    c = consul.Consul()
-    print(f"开始退出服务{server_name}")
-    c.agent.service.deregister(f'{server_name}-{ip}-{port}')
-
-
-if __name__ == '__main__':
-    unregister("test_server", "127.0.0.1", 8500)
+service_id = "user-service-id"
+url = f"http://127.0.0.1:8500/v1/agent/service/deregister/{service_id}"
+rsp = zdppy_requests.put(url, headers=headers)
+if rsp.status_code == 200:
+    print("注销成功")
+else:
+    print(f"注销失败：{rsp.status_code}")
