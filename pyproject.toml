@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "zdppy_consul"
-version = "0.1.0"
-description = ""
+version = "0.1.1"
+description = "Python使用consul作为注册中心"
 authors = ["zhangdapeng520 <pygosuperman@outlook.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-zdppy-requests = "^0.1.2"
+zdppy-requests = "^0.1.1"
 
 [tool.poetry.dev-dependencies]
 

@@ -19,9 +19,11 @@ class Consul:
     consul核心类
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8500):
+    def __init__(self, host: str = "127.0.0.1", port: int = 8500, timeout: int = 30, interval: int = 3):
         self.host = host  # consul主机地址
         self.port = port  # consul端口号
+        self.timeout = timeout  # 超时时间
+        self.interval = interval  # 健康检查间隔时间
 
     def register_http_server(self,
                              server_name: str,
@@ -65,8 +67,8 @@ class Consul:
             "Port": server_port,
             "Check": {
                 "HTTP": health_check_path,
-                "Timeout": "5s",
-                "Interval": "5s",
+                "Timeout": f"{self.timeout}s",
+                "Interval": f"{self.interval}s",
                 "DeregisterCriticalServiceAfter": "15s"
             }
         })
@@ -109,8 +111,8 @@ class Consul:
             "Check": {
                 "GRPC": f"{server_host}:{server_port}",
                 "GRPCUseTLS": False,
-                "Timeout": "5s",
-                "Interval": "5s",
+                "Timeout": f"{self.timeout}s",
+                "Interval": f"{self.interval}s",
                 "DeregisterCriticalServiceAfter": "15s"
             }
         })
