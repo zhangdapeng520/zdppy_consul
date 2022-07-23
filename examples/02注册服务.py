@@ -1,14 +1,30 @@
-from zdppy_consul import consul
+import zdppy_requests
 
+headers = {
+    "contentType": "application/json"
+}
 
-def register(server_name, ip, port):
-    c = consul.Consul()  # 连接consul 服务器，默认是127.0.0.1，可用host参数指定host
-    print(f"开始注册服务{server_name}")
-    check = consul.Check.tcp(ip, port, "10s")  # 健康检查的ip，端口，检查时间
-    c.agent.service.register(server_name, f"{server_name}-{ip}-{port}",
-                             address=ip, port=port, check=check)  # 注册服务部分
-    print(f"注册服务{server_name}成功")
-
-
-if __name__ == '__main__':
-    register("test_server", "127.0.0.1", 8500)
+# 接口文档：https://www.consul.io/api-docs
+url = "http://127.0.0.1:8500/v1/agent/service/register"
+address = "127.0.0.1"
+port = 8500
+name = "user-service"
+print(f"http://{address}:{port}/health")
+rsp = zdppy_requests.put(url, headers=headers, json={
+    "Name": name,
+    "ID": "user-service-id",
+    "Tags": ["mxshop", "bobby", "imooc", "web"],
+    "Address": address,
+    "Port": port,
+    "Check": {
+        "GRPC": f"{address}:{port}",
+        "GRPCUseTLS": False,
+        "Timeout": "60s",
+        "Interval": "5s",
+        "DeregisterCriticalServiceAfter": "15s"
+    }
+})
+if rsp.status_code == 200:
+    print("注册成功")
+else:
+    print(f"注册失败：{rsp.status_code}")
